@@ -29,26 +29,34 @@ dtr.fit(X_train, y_train)
 
 class MyStrategy(Strategy):
     def init(self):
-        # Initialize the capital
         self.reg = reg
         self.mlp = mlp
         self.dtr = dtr
         self.capital = 10000
-        self.position = 0
-        
+
     def next(self):
-        # Use the model to make predictions on the test data
-        y_pred = self.reg.predict(X_test)
-        
+        # Use the model to make predictions on the current day
+        X_current = self.data[['Open', 'High', 'Low']].values.ravel()
+        y_pred = self.reg.predict(X_current.reshape(1, -1))
+        current_close = self.data.Close[-1]
+
         # Create a new column to store the trading signals
-        signal = np.where(y_pred > y_test, 1, -1)
+        signal = np.where(y_pred > self.data['Close'], 1, -1)
 
         # Create a new column to store the daily returns
-        returns = signal * (y_test - y_pred)
-        
+        returns = signal * (self.data['Close'] - y_pred)
+
         # Update the position and capital
-        self.position += signal
+        amount = self.capital / 2
+        shares = amount / self.data.Close[-1]
+        if signal.any() > 0:
+            self.buy_n(shares)
+        elif signal.any() < 0:
+            self.sell_n(shares)
         self.capital += returns
+
+        # Update the position and capital
+        self.position = shares
         
 bt = Backtest(df, MyStrategy, cash=10000, commission=.01)
 bt.run()
